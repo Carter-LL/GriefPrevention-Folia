@@ -389,7 +389,7 @@ class PlayerEventHandler implements Listener
 
                 //kick and ban
                 PlayerKickBanTask task = new PlayerKickBanTask(player, instance.config_spam_banMessage, "GriefPrevention Anti-Spam", true);
-                instance.getServer().getScheduler().scheduleSyncDelayedTask(instance, task, 1L);
+                com.normalsmp.Util.FoliaCompat.runGlobalRegion(instance, task, 1L);
             }
             else
             {
@@ -398,7 +398,7 @@ class PlayerEventHandler implements Listener
 
                 //just kick
                 PlayerKickBanTask task = new PlayerKickBanTask(player, "", "GriefPrevention Anti-Spam", false);
-                instance.getServer().getScheduler().scheduleSyncDelayedTask(instance, task, 1L);
+                com.normalsmp.Util.FoliaCompat.runGlobalRegion(instance, task, 1L);
             }
         }
         else if (result.shouldWarnChatter)
@@ -648,8 +648,7 @@ class PlayerEventHandler implements Listener
             if (instance.config_claims_worldModes.get(player.getWorld()) == ClaimsMode.Survival && !player.hasPermission("griefprevention.adminclaims") && this.dataStore.claims.size() > 10)
             {
                 WelcomeTask task = new WelcomeTask(player);
-                Bukkit.getScheduler().scheduleSyncDelayedTask(instance, task, instance.config_claims_manualDeliveryDelaySeconds * 20L);
-            }
+                com.normalsmp.Util.FoliaCompat.runPlayerRegion(instance, player, task, instance.config_claims_manualDeliveryDelaySeconds * 20L);            }
         }
 
         //silence notifications when they're coming too fast
@@ -713,8 +712,7 @@ class PlayerEventHandler implements Listener
 
                         //ban player
                         PlayerKickBanTask task = new PlayerKickBanTask(player, "", "GriefPrevention Smart Ban - Shared Login:" + info.bannedAccountName, true);
-                        instance.getServer().getScheduler().scheduleSyncDelayedTask(instance, task, 10L);
-
+                        com.normalsmp.Util.FoliaCompat.runGlobalRegion(instance, task, 10L);
                         //silence join message
                         event.setJoinMessage("");
 
@@ -753,12 +751,13 @@ class PlayerEventHandler implements Listener
                 {
                     //kick player
                     PlayerKickBanTask task = new PlayerKickBanTask(player, instance.dataStore.getMessage(Messages.TooMuchIpOverlap), "GriefPrevention IP-sharing limit.", false);
-                    instance.getServer().getScheduler().scheduleSyncDelayedTask(instance, task, 100L);
+                    com.normalsmp.Util.FoliaCompat.runGlobalRegion(instance, task, 100L);
 
                     //silence join message
                     event.setJoinMessage(null);
                     return;
                 }
+
             }
         }
 
@@ -766,44 +765,45 @@ class PlayerEventHandler implements Listener
         new IgnoreLoaderThread(playerID, playerData.ignoredPlayers).start();
 
         //is he stuck in a portal frame?
-        if (player.hasMetadata("GP_PORTALRESCUE"))
-        {
-            //If so, let him know and rescue him in 10 seconds. If he is in fact not trapped, hopefully chunks will have loaded by this time so he can walk out.
+        if (player.hasMetadata("GP_PORTALRESCUE")) {
+            // If so, let him know and rescue him in 10 seconds. If he is in fact not trapped,
+            // hopefully chunks will have loaded by this time so he can walk out.
             GriefPrevention.sendMessage(player, TextMode.Info, Messages.NetherPortalTrapDetectionMessage, 20L);
-            new BukkitRunnable()
-            {
-                @Override
-                public void run()
-                {
-                    if (player.getPortalCooldown() > 8 && player.hasMetadata("GP_PORTALRESCUE"))
-                    {
-                        GriefPrevention.AddLogEntry("Rescued " + player.getName() + " from a nether portal.\nTeleported from " + player.getLocation().toString() + " to " + ((Location) player.getMetadata("GP_PORTALRESCUE").get(0).value()).toString(), CustomLogEntryTypes.Debug);
-                        player.teleport((Location) player.getMetadata("GP_PORTALRESCUE").get(0).value());
-                        player.removeMetadata("GP_PORTALRESCUE", instance);
-                    }
+
+            Runnable rescueTask = () -> {
+                if (player.getPortalCooldown() > 8 && player.hasMetadata("GP_PORTALRESCUE")) {
+                    GriefPrevention.AddLogEntry("Rescued " + player.getName() + " from a nether portal.\nTeleported from " + player.getLocation().toString() + " to " + ((Location) player.getMetadata("GP_PORTALRESCUE").get(0).value()).toString(), CustomLogEntryTypes.Debug);
+                    player.teleport((Location) player.getMetadata("GP_PORTALRESCUE").get(0).value());
+                    player.removeMetadata("GP_PORTALRESCUE", instance);
                 }
-            }.runTaskLater(instance, 200L);
+            };
+
+            com.normalsmp.Util.FoliaCompat.runGlobalRegion(instance, rescueTask, 200L);
         }
+
         //Otherwise just reset cooldown, just in case they happened to logout again...
         else
             player.setPortalCooldown(0);
 
 
         //if we're holding a logout message for this player, don't send that or this event's join message
-        if (instance.config_spam_logoutMessageDelaySeconds > 0)
-        {
+        if (instance.config_spam_logoutMessageDelaySeconds > 0) {
             String joinMessage = event.getJoinMessage();
-            if (joinMessage != null && !joinMessage.isEmpty())
-            {
+            if (joinMessage != null && !joinMessage.isEmpty()) {
                 Integer taskID = this.heldLogoutMessages.get(player.getUniqueId());
-                if (taskID != null && Bukkit.getScheduler().isQueued(taskID))
-                {
-                    Bukkit.getScheduler().cancelTask(taskID);
-                    player.sendMessage(event.getJoinMessage());
-                    event.setJoinMessage("");
+                if (taskID != null) {
+                    if (!com.normalsmp.Util.FoliaCompat.isFolia() && Bukkit.getScheduler().isQueued(taskID)) {
+                        Bukkit.getScheduler().cancelTask(taskID);
+                        player.sendMessage(event.getJoinMessage());
+                        event.setJoinMessage("");
+                    } else {
+                        // Folia detected, but no API for isQueued/cancelTask by task ID.
+                        // You may want to log or handle differently here.
+                    }
                 }
             }
         }
+
     }
 
     //when a player spawns, conditionally apply temporary pvp protection
@@ -923,13 +923,19 @@ class PlayerEventHandler implements Listener
         if (instance.config_spam_logoutMessageDelaySeconds > 0)
         {
             String quitMessage = event.getQuitMessage();
-            if (quitMessage != null && !quitMessage.isEmpty())
-            {
+            if (quitMessage != null && !quitMessage.isEmpty()) {
                 BroadcastMessageTask task = new BroadcastMessageTask(quitMessage);
-                int taskID = Bukkit.getScheduler().scheduleSyncDelayedTask(instance, task, 20L * instance.config_spam_logoutMessageDelaySeconds);
-                this.heldLogoutMessages.put(playerID, taskID);
+                if (!com.normalsmp.Util.FoliaCompat.isFolia()) {
+                    int taskID = Bukkit.getScheduler().scheduleSyncDelayedTask(instance, task, 20L * instance.config_spam_logoutMessageDelaySeconds);
+                    this.heldLogoutMessages.put(playerID, taskID);
+                } else {
+                    // Folia - run with delay but no task ID returned or cancellation support here
+                    com.normalsmp.Util.FoliaCompat.runGlobalRegion(instance, task, 20L * instance.config_spam_logoutMessageDelaySeconds);
+                    // You may want to track the task manually if cancellation is needed
+                }
                 event.setQuitMessage("");
             }
+
         }
     }
 
@@ -1321,8 +1327,9 @@ class PlayerEventHandler implements Listener
             if (instance.claimsEnabledForWorld(player.getWorld()))
             {
                 EquipShovelProcessingTask task = new EquipShovelProcessingTask(player);
-                instance.getServer().getScheduler().scheduleSyncDelayedTask(instance, task, 15L);  //15L is approx. 3/4 of a second
+                com.normalsmp.Util.FoliaCompat.runGlobalRegion(instance, task, 15L);  // 15 ticks delay
             }
+
         }
     }
 

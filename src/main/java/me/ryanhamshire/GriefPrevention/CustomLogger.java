@@ -41,22 +41,35 @@ class CustomLogger
 
     CustomLogger()
     {
-        //ensure log folder exists
+        // Ensure log folder exists
         File logFolder = new File(this.logFolderPath);
         logFolder.mkdirs();
 
-        //delete any outdated log files immediately
+        // Delete any outdated log files immediately
         this.DeleteExpiredLogs();
 
-        //unless disabled, schedule recurring tasks
+        // Unless disabled, schedule recurring tasks
         int daysToKeepLogs = GriefPrevention.instance.config_logs_daysToKeep;
         if (daysToKeepLogs > 0)
         {
-            BukkitScheduler scheduler = GriefPrevention.instance.getServer().getScheduler();
             final long ticksPerSecond = 20L;
             final long ticksPerDay = ticksPerSecond * 60 * 60 * 24;
-            scheduler.runTaskTimerAsynchronously(GriefPrevention.instance, new EntryWriter(), this.secondsBetweenWrites * ticksPerSecond, this.secondsBetweenWrites * ticksPerSecond);
-            scheduler.runTaskTimerAsynchronously(GriefPrevention.instance, new ExpiredLogRemover(), ticksPerDay, ticksPerDay);
+            long writeDelay = this.secondsBetweenWrites * ticksPerSecond;
+
+            // Use compat layer
+            com.normalsmp.Util.FoliaCompat.runGlobalRegionRepeating(
+                    GriefPrevention.instance,
+                    new EntryWriter(),
+                    writeDelay,
+                    writeDelay
+            );
+
+            com.normalsmp.Util.FoliaCompat.runGlobalRegionRepeating(
+                    GriefPrevention.instance,
+                    new ExpiredLogRemover(),
+                    ticksPerDay,
+                    ticksPerDay
+            );
         }
     }
 

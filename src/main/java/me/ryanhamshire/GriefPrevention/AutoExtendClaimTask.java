@@ -70,9 +70,12 @@ public class AutoExtendClaimTask implements Runnable
             }
         }
 
-        Bukkit.getScheduler().runTaskAsynchronously(
+        com.normalsmp.Util.FoliaCompat.runGlobalRegion(
                 GriefPrevention.instance,
-                new AutoExtendClaimTask(claim, snapshots, world.getEnvironment(), lowestLootableTile));
+                new AutoExtendClaimTask(claim, snapshots, world.getEnvironment(), lowestLootableTile),
+                1L // Delay of 1 tick to simulate async defer (Folia-safe)
+        );
+
     }
 
     private final Claim claim;
@@ -109,9 +112,10 @@ public class AutoExtendClaimTask implements Runnable
         int newY = this.getLowestBuiltY();
         if (newY < this.claim.getLesserBoundaryCorner().getBlockY())
         {
-            Bukkit.getScheduler().runTask(GriefPrevention.instance, new ExecuteExtendClaimTask(claim, newY));
+            com.normalsmp.Util.FoliaCompat.runOnMainThread(GriefPrevention.instance, new ExecuteExtendClaimTask(claim, newY), 0L);
         }
     }
+
 
     private int getLowestBuiltY()
     {

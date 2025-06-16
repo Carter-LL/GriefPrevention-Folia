@@ -18,6 +18,7 @@
 
 package me.ryanhamshire.GriefPrevention;
 
+import com.normalsmp.Util.FoliaCompat;
 import me.ryanhamshire.GriefPrevention.events.AccrueClaimBlocksEvent;
 import org.bukkit.entity.Player;
 
@@ -50,7 +51,7 @@ class DeliverClaimBlocksTask implements Runnable
             for (Player onlinePlayer : players)
             {
                 DeliverClaimBlocksTask newTask = new DeliverClaimBlocksTask(onlinePlayer, instance);
-                instance.getServer().getScheduler().scheduleSyncDelayedTask(instance, newTask, i++);
+                FoliaCompat.runOnMainThread(instance, newTask, i++);
             }
 
             return; //tasks started for each player
